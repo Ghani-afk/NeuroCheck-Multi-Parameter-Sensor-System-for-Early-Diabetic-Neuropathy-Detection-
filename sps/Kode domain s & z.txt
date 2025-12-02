@@ -1,0 +1,441 @@
+using System;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
+using ChartingSeries = System.Windows.Forms.DataVisualization.Charting.Series;
+using System.Numerics;
+
+namespace DiabetesNeuropathyDetector
+{
+    public partial class FormMain : Form
+    {
+        private PictureBox pictureBox3D;
+        private Chart chartSDomain, chartZDomain, chartPhaseZ;
+
+        public FormMain()
+        {
+            InitializeComponent();
+            InitializeSystemAnalysis();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = "System Analysis - Domain S & Z";
+            this.Size = new Size(1300, 800);
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            SetupUIComponents();
+        }
+
+        private void SetupUIComponents()
+        {
+            TableLayoutPanel mainPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 2,
+                Padding = new Padding(10)
+            };
+            mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            this.Controls.Add(mainPanel);
+
+            // 3D Image
+            pictureBox3D = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            mainPanel.Controls.Add(pictureBox3D, 0, 0);
+            Load3DImage();
+
+            // Domain S Chart
+            chartSDomain = new Chart { Dock = DockStyle.Fill };
+            ConfigureSDomainChart(chartSDomain);
+            mainPanel.Controls.Add(chartSDomain, 1, 0);
+
+            // Domain Z Chart
+            chartZDomain = new Chart { Dock = DockStyle.Fill };
+            ConfigureZDomainChart(chartZDomain);
+            mainPanel.Controls.Add(chartZDomain, 0, 1);
+
+            // Phase Chart
+            chartPhaseZ = new Chart { Dock = DockStyle.Fill };
+            ConfigurePhaseChart(chartPhaseZ);
+            mainPanel.Controls.Add(chartPhaseZ, 1, 1);
+
+            UpdateSystemAnalysis();
+        }
+
+        private void Load3DImage()
+        {
+            try
+            {
+                string imagePath = @"C:\Users\Lenovo\Downloads\sps?\\3d.jpg";
+                if (File.Exists(imagePath))
+                {
+                    pictureBox3D.Image = Image.FromFile(imagePath);
+                }
+                else
+                {
+                    Create3DPlaceholderImage();
+                }
+            }
+            catch (Exception)
+            {
+                Create3DPlaceholderImage();
+            }
+        }
+
+        private void Create3DPlaceholderImage()
+        {
+            Bitmap bmp = new Bitmap(400, 300);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Navy);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                using (Pen axisPen = new Pen(Color.White, 2))
+                {
+                    g.DrawLine(axisPen, 50, 250, 350, 250);
+                    g.DrawString("X", new Font("Arial", 10, FontStyle.Bold), Brushes.White, 355, 245);
+                    
+                    g.DrawLine(axisPen, 50, 250, 50, 50);
+                    g.DrawString("Y", new Font("Arial", 10, FontStyle.Bold), Brushes.White, 45, 45);
+                    
+                    g.DrawLine(axisPen, 50, 250, 150, 200);
+                    g.DrawString("Z", new Font("Arial", 10, FontStyle.Bold), Brushes.White, 155, 195);
+                }
+
+                Point3D[] sensors = {
+                    new Point3D(100, 150, 50),
+                    new Point3D(200, 100, 80),
+                    new Point3D(150, 200, 30),
+                    new Point3D(250, 150, 60)
+                };
+
+                foreach (var sensor in sensors)
+                {
+                    Point2D projected = Project3DTo2D(sensor);
+                    g.FillEllipse(Brushes.Red, projected.X - 5, projected.Y - 5, 10, 10);
+                }
+
+                using (Font font = new Font("Arial", 12, FontStyle.Bold))
+                {
+                    g.DrawString("3D SENSOR PLACEMENT", font, Brushes.White, 100, 260);
+                }
+            }
+            pictureBox3D.Image = bmp;
+        }
+
+        private Point2D Project3DTo2D(Point3D point3D)
+        {
+            int centerX = 200, centerY = 150;
+            double scale = 2.0;
+            
+            int x = centerX + (int)(point3D.X * scale - point3D.Z * 0.5);
+            int y = centerY - (int)(point3D.Y * scale - point3D.Z * 0.3);
+            
+            return new Point2D(x, y);
+        }
+
+        private void ConfigureSDomainChart(Chart chart)
+        {
+            chart.ChartAreas.Clear();
+            chart.Series.Clear();
+            chart.Titles.Clear();
+            chart.Annotations.Clear();
+
+            ChartArea area = new ChartArea();
+            area.AxisX.Title = "Real (σ)";
+            area.AxisY.Title = "Imaginer (jω)";
+            area.AxisX.Minimum = -1200;
+            area.AxisX.Maximum = 100;
+            area.AxisY.Minimum = -100;
+            area.AxisY.Maximum = 100;
+
+            area.AxisX.MajorGrid.Enabled = true;
+            area.AxisY.MajorGrid.Enabled = true;
+
+            chart.ChartAreas.Add(area);
+            chart.Titles.Add("DOMAIN-S - POLE & DAERAH KONVERGENSI");
+            chart.Titles[0].Font = new Font("Arial", 10, FontStyle.Bold);
+        }
+
+        private void ConfigureZDomainChart(Chart chart)
+        {
+            chart.ChartAreas.Clear();
+            chart.Series.Clear();
+            chart.Titles.Clear();
+            chart.Annotations.Clear();
+
+            ChartArea area = new ChartArea();
+            area.AxisX.Title = "Real";
+            area.AxisY.Title = "Imaginer";
+            area.AxisX.Minimum = -1.5;
+            area.AxisX.Maximum = 1.5;
+            area.AxisY.Minimum = -1.5;
+            area.AxisY.Maximum = 1.5;
+
+            area.AxisX.MajorGrid.Enabled = true;
+            area.AxisY.MajorGrid.Enabled = true;
+
+            chart.ChartAreas.Add(area);
+            chart.Titles.Add("DOMAIN-Z - POLE ZERO PLOT");
+            chart.Titles[0].Font = new Font("Arial", 10, FontStyle.Bold);
+        }
+
+        private void ConfigurePhaseChart(Chart chart)
+        {
+            chart.ChartAreas.Clear();
+            chart.Series.Clear();
+            chart.Titles.Clear();
+            chart.Annotations.Clear();
+
+            ChartArea area = new ChartArea();
+            area.AxisX.Title = "Frekuensi Normalized (×π rad/sample)";
+            area.AxisY.Title = "Sudut Phase (derajat)";
+            area.AxisX.Minimum = 0;
+            area.AxisX.Maximum = 1;
+            area.AxisY.Minimum = -180;
+            area.AxisY.Maximum = 180;
+            area.AxisY.Interval = 45;
+
+            area.AxisX.MajorGrid.Enabled = true;
+            area.AxisY.MajorGrid.Enabled = true;
+
+            chart.ChartAreas.Add(area);
+            chart.Titles.Add("RESPONSE SUDUT PHASE - DOMAIN Z");
+            chart.Titles[0].Font = new Font("Arial", 10, FontStyle.Bold);
+        }
+
+        private void InitializeSystemAnalysis()
+        {
+            UpdateSystemAnalysis();
+        }
+
+        private void UpdateSystemAnalysis()
+        {
+            UpdateSDomainPlot();
+            UpdateZDomainPlot();
+            UpdatePhaseResponse();
+        }
+
+        private void UpdateSDomainPlot()
+        {
+            chartSDomain.Series.Clear();
+            chartSDomain.Annotations.Clear();
+
+            // Daerah Konvergensi
+            var rocSeries = new ChartingSeries("ROC")
+            {
+                ChartType = SeriesChartType.Point,
+                Color = Color.FromArgb(20, Color.Green),
+                MarkerStyle = MarkerStyle.Square,
+                MarkerSize = 10
+            };
+
+            for (double x = -6.0; x <= 100; x += 15)
+            {
+                for (double y = -100; y <= 100; y += 15)
+                {
+                    rocSeries.Points.AddXY(x, y);
+                }
+            }
+            chartSDomain.Series.Add(rocSeries);
+
+            // Pole
+            var poleSeries = new ChartingSeries("Pole")
+            {
+                ChartType = SeriesChartType.Point,
+                MarkerStyle = MarkerStyle.Cross,
+                MarkerSize = 12,
+                Color = Color.Red,
+                BorderWidth = 2
+            };
+
+            poleSeries.Points.AddXY(-31.25, 0);
+            poleSeries.Points.AddXY(-1155, 0);
+            poleSeries.Points.AddXY(-6.29, 0);
+
+            chartSDomain.Series.Add(poleSeries);
+
+            // Garis batas ROC
+            var rocBoundary = new ChartingSeries("Batas ROC")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Green,
+                BorderWidth = 2,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            rocBoundary.Points.AddXY(-6.29, -100);
+            rocBoundary.Points.AddXY(-6.29, 100);
+            chartSDomain.Series.Add(rocBoundary);
+
+            // Keterangan
+            var rocAnnotation = new TextAnnotation();
+            rocAnnotation.Text = "ROC: σ > -6.29";
+            rocAnnotation.X = 20;
+            rocAnnotation.Y = 80;
+            rocAnnotation.ForeColor = Color.Green;
+            rocAnnotation.Font = new Font("Arial", 9, FontStyle.Bold);
+            chartSDomain.Annotations.Add(rocAnnotation);
+        }
+
+        private void UpdateZDomainPlot()
+        {
+            chartZDomain.Series.Clear();
+            chartZDomain.Annotations.Clear();
+
+            // Unit circle
+            var unitCircle = new ChartingSeries("Unit Circle")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Gray,
+                BorderWidth = 2
+            };
+
+            for (double angle = 0; angle <= 2 * Math.PI; angle += 0.05)
+            {
+                unitCircle.Points.AddXY(Math.Cos(angle), Math.Sin(angle));
+            }
+            chartZDomain.Series.Add(unitCircle);
+
+            // Pole
+            var poleSeries = new ChartingSeries("Pole")
+            {
+                ChartType = SeriesChartType.Point,
+                MarkerStyle = MarkerStyle.Cross,
+                MarkerSize = 8,
+                Color = Color.Red,
+                BorderWidth = 2
+            };
+
+            poleSeries.Points.AddXY(0.9692, 0);
+            poleSeries.Points.AddXY(0.3150, 0);
+            poleSeries.Points.AddXY(0.9937, 0);
+
+            chartZDomain.Series.Add(poleSeries);
+
+            // Keterangan
+            var rocAnnotation = new TextAnnotation();
+            rocAnnotation.Text = "ROC: |z| > 0.9937";
+            rocAnnotation.X = -1.2;
+            rocAnnotation.Y = 1.3;
+            rocAnnotation.ForeColor = Color.Blue;
+            rocAnnotation.Font = new Font("Arial", 9, FontStyle.Bold);
+            chartZDomain.Annotations.Add(rocAnnotation);
+        }
+
+        private void UpdatePhaseResponse()
+        {
+            chartPhaseZ.Series.Clear();
+            chartPhaseZ.Annotations.Clear();
+
+            var phaseSeries = new ChartingSeries("Phase")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Purple,
+                BorderWidth = 2
+            };
+
+            // Calculate phase response
+            int numPoints = 100;
+            for (int i = 0; i <= numPoints; i++)
+            {
+                double omega = i * Math.PI / numPoints;
+                Complex hz = CalculateTransferFunctionZ(omega);
+                double phaseDegrees = hz.Phase * (180.0 / Math.PI);
+                phaseSeries.Points.AddXY(omega / Math.PI, phaseDegrees);
+            }
+            chartPhaseZ.Series.Add(phaseSeries);
+
+            // Titik penting
+            var importantPoints = new ChartingSeries("Points")
+            {
+                ChartType = SeriesChartType.Point,
+                MarkerStyle = MarkerStyle.Circle,
+                MarkerSize = 6,
+                Color = Color.Red
+            };
+
+            double[] criticalFreqs = { 0, 0.25 * Math.PI, 0.5 * Math.PI, 0.75 * Math.PI, Math.PI };
+            string[] freqLabels = { "0", "0.25π", "0.5π", "0.75π", "π" };
+
+            for (int i = 0; i < criticalFreqs.Length; i++)
+            {
+                double freq = criticalFreqs[i];
+                Complex hz = CalculateTransferFunctionZ(freq);
+                double phaseDegrees = hz.Phase * (180.0 / Math.PI);
+                importantPoints.Points.AddXY(freq / Math.PI, phaseDegrees);
+                
+                var annotation = new TextAnnotation();
+                annotation.Text = $"{freqLabels[i]}\n{phaseDegrees:F1}°";
+                annotation.AnchorX = freq / Math.PI;
+                annotation.AnchorY = phaseDegrees;
+                annotation.ForeColor = Color.DarkBlue;
+                annotation.Font = new Font("Arial", 8);
+                annotation.AnchorOffsetY = 15;
+                chartPhaseZ.Annotations.Add(annotation);
+            }
+            chartPhaseZ.Series.Add(importantPoints);
+
+            // Garis referensi
+            var zeroLine = new ChartingSeries("0°")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Gray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            zeroLine.Points.AddXY(0, 0);
+            zeroLine.Points.AddXY(1, 0);
+            chartPhaseZ.Series.Add(zeroLine);
+        }
+
+        private Complex CalculateTransferFunctionZ(double omega)
+        {
+            Complex z = Complex.Exp(new Complex(0, omega));
+            Complex z_inv = 1.0 / z;
+
+            Complex denominator = Complex.Pow(1 - 0.9692 * z_inv, 3) * 
+                                 (1 - 0.3150 * z_inv) * 
+                                 (1 - 0.9937 * z_inv);
+
+            if (denominator.Magnitude == 0)
+                return new Complex(0, 0);
+
+            return 5.67e-16 / denominator;
+        }
+    }
+
+    public class Point3D
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Z { get; set; }
+
+        public Point3D(double x, double y, double z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+    }
+
+    public class Point2D
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+
+        public Point2D(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+}
